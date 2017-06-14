@@ -8,15 +8,15 @@
 #define SYMBOL_NUM 256
 #define MAX_CODE_LEN (SYMBOL_NUM - 1)
 
-#define GRID_DIM (1u << 6)
-#define BLOCK_DIM (1u << 5)
+#define GRID_X (1u << 12)
+#define GRID_Y 1
+#define BLOCK_X (1u << 10)
+#define BLOCK_Y 1
 
-#define RAW_BUFF_SIZE (GRID_DIM * GRID_DIM * BLOCK_DIM * BLOCK_DIM)
+#define RAW_BUFF_SIZE (GRID_X * GRID_Y * BLOCK_X * BLOCK_Y)
 
-#define DEF_IDX                                           \
-    size_t idx_x = blockDim.x * blockIdx.x + threadIdx.x; \
-    size_t idx_y = blockDim.y * blockIdx.y + threadIdx.y; \
-    size_t idx = GRID_DIM * BLOCK_DIM * idx_y + idx_x;
+#define DEF_IDX \
+    size_t idx = blockDim.x * blockIdx.x + threadIdx.x;
 
 #define CUDA_SAFE_CALL(func)                                               \
     do {                                                                   \
@@ -54,10 +54,6 @@ int main(int argc, char** argv)
                     raw_data_h + raw_len, 1, RAW_BUFF_SIZE - raw_len, raw_file))
                != 0) {
             raw_len += r;
-            if (raw_len >= RAW_BUFF_SIZE) {
-                fprintf(stderr, "Raw buffer overflowed\n");
-                exit(EXIT_FAILURE);
-            }
         }
         fclose(raw_file);
         printf("done. Read %zu bytes.\n", raw_len);
@@ -106,8 +102,8 @@ int main(int argc, char** argv)
     // free(code_h);
 
     // Run on CUDA
-    dim3 grid(GRID_DIM, GRID_DIM);
-    dim3 block(BLOCK_DIM, BLOCK_DIM, 1);
+    dim3 grid(GRID_X, GRID_Y);
+    dim3 block(BLOCK_X, BLOCK_Y, 1);
 
     struct timeval time_start, time_end;
     gettimeofday(&time_start, NULL);
@@ -164,10 +160,10 @@ int main(int argc, char** argv)
     // CUDA_SAFE_CALL(cudaFree(bytes));
 
     gettimeofday(&time_end, NULL);
-    double msec = (double)(time_end.tv_sec - time_start.tv_sec)
-                  + (double)(time_end.tv_usec - time_start.tv_usec) / 1e3;
-    printf("raw_len: %zu time: %lfmsec time/raw_len: %lf\n",
-        raw_len, msec, raw_len / msec);
+    double sec = (double)(time_end.tv_sec - time_start.tv_sec)
+                  + (double)(time_end.tv_usec - time_start.tv_usec) / 1e6;
+    printf("bytes: %zu sec: %lf bytes/sec: %lf\n",
+        raw_len, sec, raw_len / sec);
 
     return 0;
 }
