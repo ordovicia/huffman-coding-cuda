@@ -28,6 +28,8 @@
         }                                                                  \
     } while (0)
 
+void prefixSumHost(
+    char* raw_data, size_t* code_len, size_t* len_ps, size_t raw_len);
 __global__ void prefixSum(
     char* raw_data, size_t* code_len, size_t* len_ps, size_t raw_len);
 __global__ void genByteStream(
@@ -109,11 +111,16 @@ int main(int argc, char** argv)
     gettimeofday(&time_start, NULL);
 
     // Prefix sum of code length
+    size_t* len_ps_h = (size_t*)calloc(raw_len, sizeof(size_t));
+
+    prefixSumHost(raw_data_h, code_len_h, len_ps_h, raw_len);
+    // prefixSum<<<grid, block>>>(raw_data, code_len, len_ps, raw_len);
+    CUDA_SAFE_CALL(cudaThreadSynchronize());
+
     size_t* len_ps;
     CUDA_SAFE_CALL(cudaMalloc((void**)&len_ps, raw_len * sizeof(size_t)));
-
-    prefixSum<<<grid, block>>>(raw_data, code_len, len_ps, raw_len);
-    CUDA_SAFE_CALL(cudaThreadSynchronize());
+    CUDA_SAFE_CALL(cudaMemcpy(
+        len_ps, len_ps_h, raw_len * sizeof(size_t), cudaMemcpyHostToDevice));
 
     /* {
         size_t* len_ps_h = (size_t*)malloc(sizeof(size_t) * raw_len);
@@ -161,11 +168,20 @@ int main(int argc, char** argv)
 
     gettimeofday(&time_end, NULL);
     double sec = (double)(time_end.tv_sec - time_start.tv_sec)
-                  + (double)(time_end.tv_usec - time_start.tv_usec) / 1e6;
+                 + (double)(time_end.tv_usec - time_start.tv_usec) / 1e6;
     printf("bytes: %zu sec: %lf bytes/sec: %lf\n",
         raw_len, sec, raw_len / sec);
 
     return 0;
+}
+
+void prefixSumHost(
+    char* raw_data, size_t* code_len, size_t* len_ps, size_t raw_len)
+{
+    len_ps[0] = 0;
+    for (size_t i = 1; i < raw_len; i++) {
+        len_ps[i] = len_ps[i - 1] + code_len[raw_data[i - 1]];
+    }
 }
 
 __global__ void prefixSum(
